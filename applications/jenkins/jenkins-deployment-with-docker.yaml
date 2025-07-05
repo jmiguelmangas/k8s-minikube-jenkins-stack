@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jenkins
+  namespace: jenkins
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jenkins
+  template:
+    metadata:
+      labels:
+        app: jenkins
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: role
+                operator: In
+                values:
+                - jenkins
+      containers:
+      - name: docker-dind
+        image: docker:20-dind
+        env:
+        - name: DOCKER_TLS_CERTDIR
+          value: ""
+        ports:
+        - containerPort: 2375
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - mountPath: /var/lib/docker
+          name: docker-storage
+      - name: jenkins
+        # Option A: Use your custom image with Docker (after building with the Dockerfile above)
+        image: 339713187628.dkr.ecr.eu-west-1.amazonaws.com/infra-user-uat-jenkins:jenkins-python-docker
+        # Option B: Use official Jenkins image with Docker pre-installed
+        # image: jenkins/jenkins:lts-jdk11
+        env:
+        - name: DOCKER_HOST
+          value: tcp://localhost:2375
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - mountPath: /var/jenkins_home
+          name: jenkins-home
+      securityContext:
+        runAsUser: 0
+      volumes:
+      - name: jenkins-home
+        hostPath:
+          path: /data/jenkins
+          type: DirectoryOrCreate
+      - name: docker-storage
+        hostPath:
+          path: /data/docker
+          type: DirectoryOrCreate
+

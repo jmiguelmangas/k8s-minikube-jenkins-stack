@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: jenkins-ns
+  labels:
+    name: jenkins-ns
+    type: ci-cd
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: n8n-ns
+  labels:
+    name: n8n-ns
+    type: automation
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: postgresql-ns
+  labels:
+    name: postgresql-ns
+    type: database
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring-ns
+  labels:
+    name: monitoring-ns
+    type: monitoring
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ingress-nginx
+  labels:
+    name: ingress-nginx
+    type: infrastructure

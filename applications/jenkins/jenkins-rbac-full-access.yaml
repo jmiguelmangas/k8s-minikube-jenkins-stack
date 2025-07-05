@@ -1,0 +1,35 @@
+# Service Account for Jenkins
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: jenkins-kubectl
+  namespace: jenkins
+---
+# ClusterRole with full cluster access for Jenkins
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: jenkins-cluster-admin
+rules:
+# Full access to all resources in all namespaces
+- apiGroups: ["*"]
+  resources: ["*"]
+  verbs: ["*"]
+# Full access to cluster-scoped resources
+- nonResourceURLs: ["*"]
+  verbs: ["*"]
+---
+# ClusterRoleBinding to bind cluster-admin role to Jenkins service account
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: jenkins-cluster-admin-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: jenkins-cluster-admin
+subjects:
+- kind: ServiceAccount
+  name: jenkins-kubectl
+  namespace: jenkins
+

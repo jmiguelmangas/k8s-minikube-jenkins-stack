@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jenkins-plugins
+  namespace: jenkins-ns
+data:
+  plugins.txt: |
+    ant:latest
+    build-timeout:latest
+    credentials-binding:latest
+    email-ext:latest
+    git:latest
+    github:latest
+    github-branch-source:latest
+    gradle:latest
+    kubernetes:latest
+    kubernetes-credentials:latest
+    pipeline-github-lib:latest
+    pipeline-stage-view:latest
+    ssh-slaves:latest
+    timestamper:latest
+    workflow-aggregator:latest
+    ws-cleanup:latest
+    blueocean:latest
+    docker-workflow:latest
+    kubernetes-cli:latest
+    configuration-as-code:latest

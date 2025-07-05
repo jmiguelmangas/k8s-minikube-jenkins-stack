@@ -1,0 +1,61 @@
+# Kubernetes secrets and config files
+*.kubeconfig
+kubeconfig*
+.kube/
+
+# Temporary files
+*.tmp
+*.temp
+temp/
+.tmp/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Log files
+*.log
+logs/
+
+# Jenkins specific
+jenkins_home/
+jenkins-data/
+
+# Backup files
+*.bak
+*.backup
+backups/
+
+# Environment specific
+.env
+.env.local
+.env.development
+.env.production
+
+# Build artifacts
+build/
+dist/
+target/
+
+# Node modules (if any JavaScript tools are added)
+node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Docker
+docker-compose.override.yml

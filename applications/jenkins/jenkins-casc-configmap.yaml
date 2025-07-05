@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jenkins-casc-config
+  namespace: jenkins-ns
+data:
+  jenkins.yaml: |
+    jenkins:
+      systemMessage: "Jenkins configurado automáticamente para CI/CD con Kubernetes"
+      numExecutors: 2
+      scmCheckoutRetryCount: 3
+      mode: NORMAL
+      
+      securityRealm:
+        local:
+          allowsSignup: false
+          users:
+            - id: "admin"
+              password: "admin123"
+              
+      authorizationStrategy:
+        loggedInUsersCanDoAnything:
+          allowAnonymousRead: false
+          
+      clouds:
+        - kubernetes:
+            name: "kubernetes"
+            serverUrl: "https://kubernetes.default.svc.cluster.local"
+            skipTlsVerify: true
+            namespace: "jenkins-ns"
+            credentialsId: ""
+            jenkinsUrl: "http://jenkins-service.jenkins-ns.svc.cluster.local:8080"
+            jenkinsTunnel: "jenkins-service.jenkins-ns.svc.cluster.local:50000"
+            containerCapStr: "100"
+            maxRequestsPerHostStr: "64"
+            retentionTimeout: 5
+            connectTimeout: 10
+            readTimeout: 20
+            
+    tool:
+      git:
+        installations:
+          - name: "Default"
+            home: "git"
+            
+    unclassified:
+      location:
+        adminAddress: "admin@localhost"
+        url: "http://localhost:8081/"
+        
+      globalLibraries:
+        libraries:
+          - name: "pipeline-library"
+            defaultVersion: "main"
+            retriever:
+              modernSCM:
+                scm:
+                  git:
+                    remote: "https://github.com/jenkinsci/pipeline-examples.git"

@@ -1,0 +1,114 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jenkins-deployment
+  namespace: jenkins-ns
+  labels:
+    app: jenkins
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jenkins
+  template:
+    metadata:
+      labels:
+        app: jenkins
+    spec:
+      securityContext:
+        fsGroup: 1000
+        runAsUser: 1000
+      serviceAccountName: jenkins
+      initContainers:
+      - name: plugin-installer
+        image: jenkins/jenkins:lts
+        command:
+        - sh
+        - -c
+        - |
+          cp /var/jenkins_config/plugins.txt /tmp/plugins.txt
+          jenkins-plugin-cli --plugin-file /tmp/plugins.txt --plugin-download-directory /var/jenkins_home/plugins
+        volumeMounts:
+        - name: jenkins-vol
+          mountPath: /var/jenkins_home
+        - name: jenkins-plugins-config
+          mountPath: /var/jenkins_config
+        securityContext:
+          runAsUser: 1000
+      - name: install-tools
+        image: alpine:latest
+        command:
+        - sh
+        - -c
+        - |
+          echo "Installing kubectl and curl..."
+          apk add --no-cache curl
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          mv kubectl /shared-tools/
+          curl --version > /shared-tools/curl-version.txt
+          /shared-tools/kubectl version --client=true > /shared-tools/kubectl-version.txt
+          echo "Tools installed successfully"
+        volumeMounts:
+        - name: shared-tools
+          mountPath: /shared-tools
+        securityContext:
+          runAsUser: 0
+      containers:
+      - name: jenkins
+        image: jenkins/jenkins:lts
+        ports:
+        - name: http-port
+          containerPort: 8080
+        - name: jnlp-port
+          containerPort: 50000
+        volumeMounts:
+        - name: jenkins-vol
+          mountPath: /var/jenkins_home
+        - name: jenkins-casc-config
+          mountPath: /var/jenkins_home/casc_configs
+        - name: shared-tools
+          mountPath: /usr/local/bin/kubectl
+          subPath: kubectl
+        env:
+        - name: JAVA_OPTS
+          value: "-Djenkins.install.runSetupWizard=false -Dcasc.jenkins.config=/var/jenkins_home/casc_configs"
+        - name: CASC_JENKINS_CONFIG
+          value: "/var/jenkins_home/casc_configs"
+        - name: PATH
+          value: "/usr/local/bin:/usr/bin:/bin"
+        resources:
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: "/login"
+            port: 8080
+          initialDelaySeconds: 120
+          periodSeconds: 15
+          timeoutSeconds: 10
+          failureThreshold: 5
+        readinessProbe:
+          httpGet:
+            path: "/login"
+            port: 8080
+          initialDelaySeconds: 90
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+      volumes:
+      - name: jenkins-vol
+        persistentVolumeClaim:
+          claimName: jenkins-pvc
+      - name: jenkins-plugins-config
+        configMap:
+          name: jenkins-plugins
+      - name: jenkins-casc-config
+        configMap:
+          name: jenkins-casc-config
+      - name: shared-tools
+        emptyDir: {}

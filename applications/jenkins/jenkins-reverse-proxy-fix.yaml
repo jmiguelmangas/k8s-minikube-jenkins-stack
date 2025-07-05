@@ -1,0 +1,55 @@
+# Option 1: Update Jenkins deployment with proper environment variables
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jenkins
+  namespace: jenkins
+spec:
+  template:
+    spec:
+      containers:
+      - name: jenkins
+        env:
+        - name: DOCKER_HOST
+          value: tcp://localhost:2375
+        # Jenkins reverse proxy configuration
+        - name: JENKINS_OPTS
+          value: "--prefix=/"
+        - name: JAVA_OPTS
+          value: "-Dhudson.model.DirectoryBrowserSupport.CSP= -Djenkins.install.runSetupWizard=false -Djava.awt.headless=true"
+---
+# Option 2: ConfigMap with Jenkins system configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jenkins-config
+  namespace: jenkins
+data:
+  # Jenkins Location Configuration
+  jenkins.model.JenkinsLocationConfiguration.xml: |
+    <?xml version='1.1' encoding='UTF-8'?>
+    <jenkins.model.JenkinsLocationConfiguration>
+      <adminAddress>admin@incibe-dataproduct.sbs</adminAddress>
+      <jenkinsUrl>https://jenkins.incibe-dataproduct.sbs/</jenkinsUrl>
+    </jenkins.model.JenkinsLocationConfiguration>
+  
+  # Reverse Proxy Configuration Script
+  init.groovy.d/reverse-proxy.groovy: |
+    import jenkins.model.Jenkins
+    import hudson.model.*
+    
+    def instance = Jenkins.getInstance()
+    
+    // Set Jenkins URL
+    def jlc = JenkinsLocationConfiguration.get()
+    jlc.setUrl("https://jenkins.incibe-dataproduct.sbs/")
+    jlc.save()
+    
+    // Configure reverse proxy settings
+    def desc = instance.getDescriptor("hudson.model.DirectoryBrowserSupport")
+    desc.setCSP("")
+    
+    instance.save()
+    
+    println "Jenkins reverse proxy configuration completed"
+
