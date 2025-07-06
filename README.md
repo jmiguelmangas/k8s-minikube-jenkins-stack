@@ -7,10 +7,12 @@ A complete CI/CD platform built on Minikube with Jenkins, including automated de
 This project provides a comprehensive Kubernetes-based development environment featuring:
 
 - **Jenkins CI/CD** with automatic plugin installation and configuration
+- **Keycloak SSO** for centralized authentication and authorization
 - **Kubernetes manifests** for multiple applications (N8N, PostgreSQL, Jenkins)
 - **Automated deployment scripts** for easy stack management
 - **Remote access configuration** for minikube clusters
 - **Persistent storage** and proper RBAC configuration
+- **OIDC integration** for all services with group-based access control
 
 ## 📋 Prerequisites
 
@@ -31,11 +33,20 @@ k8s-minikube-jenkins-stack/
 │   ├── namespaces/       # Namespace definitions
 │   ├── rbac/             # RBAC configurations
 │   └── storage/          # Storage classes and PVCs
+├── manifests/             # Keycloak integration manifests
+│   ├── keycloak-*.yaml   # Keycloak deployment and configuration
+│   ├── *-keycloak.yaml   # Service integrations with Keycloak
+│   └── *-keycloak-config.yaml # OIDC configurations
+├── scripts/               # Automation scripts
+│   ├── deploy-with-keycloak.sh    # Deploy with Keycloak integration
+│   ├── configure-keycloak.sh      # Configure Keycloak clients
+│   └── setup-port-forwards.sh     # Port forwarding for all services
 ├── monitoring/            # Monitoring stack (placeholder)
 ├── ci-cd/                # CI/CD pipeline definitions
 │   ├── scripts/          # Deployment scripts
 │   └── pipelines/        # Jenkins pipeline definitions
 └── docs/                 # Documentation
+    └── keycloak-setup.md # Keycloak integration guide
 ```
 
 ## 🚀 Quick Start
@@ -50,7 +61,40 @@ chmod +x ci-cd/scripts/deploy-all.sh
 ./ci-cd/scripts/deploy-all.sh
 ```
 
-### 2. Access Jenkins
+### 1b. Deploy with Keycloak Integration (Recommended)
+
+```bash
+# Deploy complete stack with Keycloak SSO
+chmod +x scripts/deploy-with-keycloak.sh
+./scripts/deploy-with-keycloak.sh
+
+# Configure Keycloak clients and users
+chmod +x scripts/configure-keycloak.sh
+./scripts/configure-keycloak.sh
+
+# Setup port forwarding for all services
+chmod +x scripts/setup-port-forwards.sh
+./scripts/setup-port-forwards.sh
+```
+
+### 2. Access Services
+
+#### With Keycloak Integration (SSO)
+
+```bash
+# Access services with centralized authentication:
+# - Keycloak Admin Console: http://localhost:8090/admin/
+# - Jenkins: http://localhost:8081 (with OIDC login)
+# - N8N: http://localhost:5678 (with OAuth2 login)
+# - pgAdmin: http://localhost:5050 (with OAuth2 login)
+# - PostgreSQL: localhost:5432 (with Keycloak users)
+
+# Default Keycloak credentials:
+# Username: jmiguelmangas
+# Password: leicakanon2025
+```
+
+#### Without Keycloak (Manual Port Forwarding)
 
 ```bash
 # Get Jenkins pod name
@@ -93,13 +137,42 @@ kubectl config set-cluster minikube --server=https://localhost:8443
 - **RBAC**: Role-based access control
 - **Storage**: Persistent volumes and claims
 
+## 🔐 Keycloak Integration
+
+### SSO Features
+- **Centralized Authentication**: Single sign-on for all services
+- **OIDC Integration**: OAuth2/OpenID Connect for Jenkins, N8N, PostgreSQL
+- **Group-based Access Control**: Role management through Keycloak groups
+- **Automated Configuration**: Scripts for client and user setup
+
+### Keycloak Configuration
+- **Realm**: `minikube-realm` with all service clients
+- **Users**: Pre-configured admin user with group memberships
+- **Groups**: `jenkins-admins`, `n8n-users`, `postgresql-users`
+- **Clients**: Configured for each service with proper redirect URIs
+
+### Service Integrations
+- **Jenkins**: OIDC plugin with automatic user creation
+- **N8N**: OAuth2 authentication with Keycloak provider
+- **PostgreSQL**: pgAdmin OAuth2 integration
+- **Keycloak**: Admin console for user/group management
+
+### Access URLs (with port forwarding)
+- **Keycloak Admin**: http://localhost:8090/admin/
+- **Jenkins**: http://localhost:8081 (OIDC login)
+- **N8N**: http://localhost:5678 (OAuth2 login)
+- **pgAdmin**: http://localhost:5050 (OAuth2 login)
+
 ## 📋 Available Scripts
 
 | Script | Description |
 |--------|-------------|
-| `deploy-all.sh` | Deploy complete stack |
-| `cleanup.sh` | Clean up all resources |
-| `create-main-pipeline.sh` | Create Jenkins pipeline via API |
+| `ci-cd/scripts/deploy-all.sh` | Deploy complete stack (basic) |
+| `ci-cd/scripts/cleanup.sh` | Clean up all resources |
+| `ci-cd/scripts/create-main-pipeline.sh` | Create Jenkins pipeline via API |
+| `scripts/deploy-with-keycloak.sh` | Deploy with Keycloak integration |
+| `scripts/configure-keycloak.sh` | Configure Keycloak clients and users |
+| `scripts/setup-port-forwards.sh` | Setup port forwarding for all services |
 
 ## 🔄 Jenkins Pipelines
 
@@ -135,6 +208,8 @@ The monitoring directory is prepared for future monitoring stack deployment (Pro
 - `PROJECT-SUMMARY.md`: Complete project overview
 - `jenkins-setup-summary.md`: Jenkins-specific setup details
 - `applications/README.md`: Application-specific documentation
+- `docs/keycloak-setup.md`: Keycloak integration and configuration guide
+- `KEYCLOAK_INTEGRATION_STATUS.md`: Current integration status and roadmap
 
 ## 🔧 Troubleshooting
 
@@ -144,12 +219,16 @@ The monitoring directory is prepared for future monitoring stack deployment (Pro
 2. **SSH connection refused**: Verify SSH keys and server configuration
 3. **kubectl permission denied**: Check RBAC configuration
 4. **Pipeline hanging**: Ensure all tools are installed in Jenkins container
+5. **Keycloak login fails**: Check client configuration and redirect URIs
+6. **OIDC authentication issues**: Verify client secrets and realm configuration
+7. **Port forwarding not working**: Check if pods are running and ports are correct
 
 ### Debugging Commands
 
 ```bash
 # Check pod logs
 kubectl logs -n jenkins-ns deployment/jenkins-deployment
+kubectl logs -n keycloak-ns deployment/keycloak
 
 # Check resource usage
 kubectl top nodes
@@ -157,6 +236,13 @@ kubectl top pods --all-namespaces
 
 # Verify connectivity
 kubectl exec -it -n jenkins-ns deployment/jenkins-deployment -- kubectl get nodes
+
+# Check Keycloak status
+kubectl get pods -n keycloak-ns
+kubectl get svc -n keycloak-ns
+
+# Test Keycloak connectivity
+curl -k http://localhost:8090/auth/realms/minikube-realm/.well-known/openid_configuration
 ```
 
 ## 🤝 Contributing
