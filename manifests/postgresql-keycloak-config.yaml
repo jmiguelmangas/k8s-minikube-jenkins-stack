@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: postgresql
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret
+  namespace: postgresql
+type: Opaque
+data:
+  postgres-password: cG9zdGdyZXMtcGFzc3dvcmQ=  # postgres-password
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: pgadmin-secret
+  namespace: postgresql
+type: Opaque
+data:
+  password: cGdhZG1pbi1wYXNzd29yZA==  # pgadmin-password
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init-scripts
+  namespace: postgresql
+data:
+  01-create-users.sql: |
+    -- Create database users based on Keycloak groups
+    DO $$
+    BEGIN
+        -- Create n8n user
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'n8n') THEN
+            CREATE ROLE n8n WITH LOGIN PASSWORD 'n8n-password';
+        END IF;
+        
+        -- Create jenkins user  
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'jenkins') THEN
+            CREATE ROLE jenkins WITH LOGIN PASSWORD 'jenkins-password';
+        END IF;
+        
+        -- Create keycloak user
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'keycloak') THEN
+            CREATE ROLE keycloak WITH LOGIN PASSWORD 'keycloak-password';
+        END IF;
+    END
+    $$;
+    
+  02-create-databases.sql: |
+    -- Create databases for different services
+    SELECT 'CREATE DATABASE n8n OWNER n8n' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'n8n')\gexec
+    SELECT 'CREATE DATABASE keycloak OWNER keycloak' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'keycloak')\gexec
+    
+  03-grant-permissions.sql: |
+    -- Grant permissions based on roles
+    GRANT ALL PRIVILEGES ON DATABASE n8n TO n8n;
+    GRANT ALL PRIVILEGES ON DATABASE keycloak TO keycloak;
+    
+    -- Give jenkins read access to n8n database for monitoring
+    GRANT CONNECT ON DATABASE n8n TO jenkins;
+    
+    -- Create a monitoring role for jenkins
+    GRANT pg_monitor TO jenkins;

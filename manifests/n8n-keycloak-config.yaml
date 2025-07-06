@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: n8n
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: n8n-oidc-secret
+  namespace: n8n
+type: Opaque
+data:
+  CLIENT_SECRET: bjhuLXNlY3JldA==  # n8n-secret
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: n8n-oidc-config
+  namespace: n8n
+data:
+  CLIENT_ID: "n8n"
+  ISSUER_URL: "http://keycloak.keycloak.svc.cluster.local:8080/realms/k8s-stack"
+  REDIRECT_URL: "http://localhost:5678/rest/oauth2-credential/callback"
+  SCOPES: "openid email profile"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: n8n-db-secret
+  namespace: n8n
+type: Opaque
+data:
+  password: bjhuLXBhc3N3b3Jk  # n8n-password
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: n8n-db-config
+  namespace: n8n
+data:
+  POSTGRES_HOST: "postgresql.postgresql.svc.cluster.local"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "n8n"
+  POSTGRES_USER: "n8n"

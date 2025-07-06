@@ -1,0 +1,137 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: n8n-deployment
+  namespace: n8n
+  labels:
+    app: n8n
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: n8n
+  template:
+    metadata:
+      labels:
+        app: n8n
+    spec:
+      containers:
+      - name: n8n
+        image: n8nio/n8n:latest
+        ports:
+        - name: http-port
+          containerPort: 5678
+        env:
+        - name: N8N_ENCRYPTION_KEY
+          value: "mysecretkey"
+        - name: N8N_HOST
+          value: "0.0.0.0"
+        - name: N8N_PORT
+          value: "5678"
+        - name: N8N_PROTOCOL
+          value: "http"
+        - name: WEBHOOK_URL
+          value: "http://localhost:5678"
+        - name: N8N_EDITOR_BASE_URL
+          value: "http://localhost:5678"
+        - name: N8N_DISABLE_UI
+          value: "false"
+        # Database connection
+        - name: DB_TYPE
+          value: "postgresdb"
+        - name: DB_POSTGRESDB_HOST
+          value: "postgresql.postgresql.svc.cluster.local"
+        - name: DB_POSTGRESDB_PORT
+          value: "5432"
+        - name: DB_POSTGRESDB_DATABASE
+          value: "n8n"
+        - name: DB_POSTGRESDB_USER
+          value: "n8n"
+        - name: DB_POSTGRESDB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: n8n-db-secret
+              key: password
+        # Keycloak OIDC configuration
+        - name: N8N_EXTERNAL_AUTH_ENABLE
+          value: "true"
+        - name: N8N_EXTERNAL_AUTH_REDIRECT_URL
+          value: "http://localhost:5678/rest/oauth2-credential/callback"
+        - name: N8N_EXTERNAL_AUTH_CLIENT_ID
+          valueFrom:
+            configMapKeyRef:
+              name: n8n-oidc-config
+              key: CLIENT_ID
+        - name: N8N_EXTERNAL_AUTH_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: n8n-oidc-secret
+              key: CLIENT_SECRET
+        - name: N8N_EXTERNAL_AUTH_ISSUER_URL
+          valueFrom:
+            configMapKeyRef:
+              name: n8n-oidc-config
+              key: ISSUER_URL
+        - name: N8N_EXTERNAL_AUTH_SCOPE
+          value: "openid email profile"
+        - name: N8N_EXTERNAL_AUTH_AUTO_CREATE_USER
+          value: "true"
+        volumeMounts:
+        - name: n8n-data
+          mountPath: /home/node/.n8n
+        resources:
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+        livenessProbe:
+          httpGet:
+            path: "/healthz"
+            port: 5678
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: "/healthz"
+            port: 5678
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          timeoutSeconds: 5
+          failureThreshold: 3
+      volumes:
+      - name: n8n-data
+        persistentVolumeClaim:
+          claimName: n8n-pvc
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: n8n-pvc
+  namespace: n8n
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: n8n
+  namespace: n8n
+  labels:
+    app: n8n
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5678
+    targetPort: 5678
+    protocol: TCP
+    name: http
+  selector:
+    app: n8n

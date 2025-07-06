@@ -1,0 +1,105 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: jenkins-oidc-secret
+  namespace: jenkins
+type: Opaque
+data:
+  CLIENT_ID: amVua2lucw==  # jenkins
+  CLIENT_SECRET: amVua2lucy1zZWNyZXQ=  # jenkins-secret
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jenkins-oidc-config
+  namespace: jenkins
+data:
+  OIDC_ISSUER_URL: "http://keycloak.keycloak.svc.cluster.local:8080/realms/k8s-stack"
+  OIDC_CLIENT_ID: "jenkins"
+  OIDC_REDIRECT_URI: "http://jenkins.local:8080/securityRealm/finishLogin"
+  OIDC_SCOPES: "openid email profile"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jenkins-casc-config
+  namespace: jenkins
+data:
+  jenkins.yaml: |
+    jenkins:
+      securityRealm:
+        oic:
+          clientId: "${OIDC_CLIENT_ID}"
+          clientSecret: "${OIDC_CLIENT_SECRET}"
+          wellKnownOpenIDConfigurationUrl: "${OIDC_ISSUER_URL}/.well-known/openid_configuration"
+          scopes: "${OIDC_SCOPES}"
+          userNameField: "preferred_username"
+          fullNameFieldName: "name"
+          emailFieldName: "email"
+          groupsFieldName: "groups"
+          disableSslVerification: true
+          logoutFromOpenidProvider: true
+          postLogoutRedirectUrl: "http://jenkins.local:8080"
+          escapeHatchEnabled: true
+          escapeHatchUsername: "admin"
+          escapeHatchSecret: "${JENKINS_ADMIN_PASSWORD}"
+      
+      authorizationStrategy:
+        roleBased:
+          roles:
+            global:
+              - name: "admin"
+                description: "Jenkins administrators"
+                permissions:
+                  - "Overall/Administer"
+                entries:
+                  - user: "admin"
+                  - group: "jenkins-admins"
+              - name: "developer"
+                description: "Jenkins developers"
+                permissions:
+                  - "Overall/Read"
+                  - "Job/Build"
+                  - "Job/Cancel"
+                  - "Job/Read"
+                  - "Job/Workspace"
+                  - "View/Read"
+                entries:
+                  - group: "jenkins-developers"
+              - name: "viewer"
+                description: "Jenkins viewers"
+                permissions:
+                  - "Overall/Read"
+                  - "Job/Read"
+                  - "View/Read"
+                entries:
+                  - group: "jenkins-viewers"
+    
+    unclassified:
+      location:
+        url: "http://jenkins.local:8080"
+      
+      globalLibraries:
+        libraries:
+          - name: "shared-library"
+            retriever:
+              modernSCM:
+                scm:
+                  git:
+                    remote: "https://github.com/jmiguelmangas/k8s-minikube-jenkins-stack.git"
+                    branches:
+                      - name: "main"
+            defaultVersion: "main"
+            implicit: true
+            allowVersionOverride: true
+    
+    tool:
+      git:
+        installations:
+          - name: "Default"
+            home: "/usr/bin/git"
+      
+      kubectl:
+        installations:
+          - name: "kubectl"
+            home: "/usr/local/bin/kubectl"

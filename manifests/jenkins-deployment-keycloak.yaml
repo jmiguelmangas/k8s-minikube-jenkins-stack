@@ -1,0 +1,190 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jenkins-deployment
+  namespace: jenkins
+  labels:
+    app: jenkins
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jenkins
+  template:
+    metadata:
+      labels:
+        app: jenkins
+    spec:
+      securityContext:
+        fsGroup: 1000
+        runAsUser: 1000
+      serviceAccountName: jenkins-kubectl
+      initContainers:
+      - name: tools-installer
+        image: alpine:latest
+        command:
+        - sh
+        - -c
+        - |
+          apk add --no-cache curl bash git jq
+          
+          # Install kubectl
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          mv kubectl /usr/local/bin/
+          
+          # Copy tools to shared volume
+          cp -r /usr/local/bin/* /shared-tools/
+          cp -r /usr/bin/git /shared-tools/
+          cp -r /usr/bin/bash /shared-tools/
+          cp -r /usr/bin/jq /shared-tools/
+          
+          echo "Tools installed successfully"
+        volumeMounts:
+        - name: shared-tools
+          mountPath: /shared-tools
+        securityContext:
+          runAsUser: 0
+      - name: plugin-installer
+        image: jenkins/jenkins:lts
+        command:
+        - sh
+        - -c
+        - |
+          cp /var/jenkins_config/plugins.txt /tmp/plugins.txt
+          jenkins-plugin-cli --plugin-file /tmp/plugins.txt --plugin-download-directory /var/jenkins_home/plugins
+        volumeMounts:
+        - name: jenkins-vol
+          mountPath: /var/jenkins_home
+        - name: jenkins-plugins-config
+          mountPath: /var/jenkins_config
+        securityContext:
+          runAsUser: 1000
+      containers:
+      - name: jenkins
+        image: jenkins/jenkins:lts
+        ports:
+        - name: http-port
+          containerPort: 8080
+        - name: jnlp-port
+          containerPort: 50000
+        volumeMounts:
+        - name: jenkins-vol
+          mountPath: /var/jenkins_home
+        - name: jenkins-casc-config
+          mountPath: /var/jenkins_home/casc_configs
+        - name: shared-tools
+          mountPath: /usr/local/bin
+        env:
+        - name: JAVA_OPTS
+          value: "-Djenkins.install.runSetupWizard=false -Dcasc.jenkins.config=/var/jenkins_home/casc_configs"
+        - name: CASC_JENKINS_CONFIG
+          value: "/var/jenkins_home/casc_configs"
+        - name: PATH
+          value: "/usr/local/bin:/usr/bin:/bin:/usr/local/openjdk-11/bin"
+        - name: JENKINS_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: jenkins-secret
+              key: JENKINS_ADMIN_PASSWORD
+        - name: OIDC_CLIENT_ID
+          valueFrom:
+            configMapKeyRef:
+              name: jenkins-oidc-config
+              key: OIDC_CLIENT_ID
+        - name: OIDC_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: jenkins-oidc-secret
+              key: CLIENT_SECRET
+        - name: OIDC_ISSUER_URL
+          valueFrom:
+            configMapKeyRef:
+              name: jenkins-oidc-config
+              key: OIDC_ISSUER_URL
+        - name: OIDC_SCOPES
+          valueFrom:
+            configMapKeyRef:
+              name: jenkins-oidc-config
+              key: OIDC_SCOPES
+        resources:
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: "/login"
+            port: 8080
+          initialDelaySeconds: 120
+          periodSeconds: 15
+          timeoutSeconds: 10
+          failureThreshold: 5
+        readinessProbe:
+          httpGet:
+            path: "/login"
+            port: 8080
+          initialDelaySeconds: 90
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+      volumes:
+      - name: jenkins-vol
+        persistentVolumeClaim:
+          claimName: jenkins-pvc
+      - name: jenkins-plugins-config
+        configMap:
+          name: jenkins-plugins
+      - name: jenkins-casc-config
+        configMap:
+          name: jenkins-casc-config
+      - name: shared-tools
+        emptyDir: {}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jenkins-plugins
+  namespace: jenkins
+data:
+  plugins.txt: |
+    ant:latest
+    antisamy-markup-formatter:latest
+    build-timeout:latest
+    credentials-binding:latest
+    email-ext:latest
+    git:latest
+    github:latest
+    github-branch-source:latest
+    gradle:latest
+    ldap:latest
+    matrix-auth:latest
+    pam-auth:latest
+    pipeline-build-step:latest
+    pipeline-graph-analysis:latest
+    pipeline-input-step:latest
+    pipeline-milestone-step:latest
+    pipeline-model-api:latest
+    pipeline-model-definition:latest
+    pipeline-model-extensions:latest
+    pipeline-rest-api:latest
+    pipeline-stage-step:latest
+    pipeline-stage-tags-metadata:latest
+    pipeline-stage-view:latest
+    ssh-slaves:latest
+    subversion:latest
+    timestamper:latest
+    workflow-aggregator:latest
+    workflow-job:latest
+    workflow-multibranch:latest
+    ws-cleanup:latest
+    configuration-as-code:latest
+    role-strategy:latest
+    kubernetes:latest
+    kubernetes-cli:latest
+    oic-auth:latest
+    blueocean:latest
+    docker-workflow:latest
+    pipeline-utility-steps:latest
